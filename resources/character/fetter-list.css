@@ -1,0 +1,139 @@
+.fetter-cont .cont-title span {
+  font-size: 13px;
+  font-weight: normal;
+  padding-left: 10px;
+  color: #d3bc8e;
+}
+.fetter-table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.fetter-table .tr {
+  display: table-row;
+  color: #333;
+  white-space: nowrap;
+}
+.fetter-table .tr:nth-child(odd) {
+  background: #fff;
+}
+.fetter-table .tr:nth-child(even) {
+  background: #f0f0f0;
+}
+.fetter-table .tr.thead {
+  background: rgba(0, 0, 0, 0.5);
+  color: #d3bc8e;
+  font-weight: bold;
+}
+.fetter-table .td {
+  display: table-cell;
+  height: 40px;
+  vertical-align: middle;
+  text-align: center;
+  box-shadow: 0 0 1px 0 rgba(100, 100, 100, 0.3) inset;
+  padding: 0 6px;
+}
+.fetter-table .thead .td {
+  height: 30px;
+}
+.fetter-table .td.star4 {
+  background: rgba(195, 134, 255, 0.35);
+}
+.fetter-table .td.star5 {
+  background: rgba(255, 212, 132, 0.35);
+}
+.fetter-table .td-idx {
+  width: 30px;
+}
+.fetter-table .td-name {
+  text-align: left;
+  width: 150px;
+}
+.fetter-table .td-name .item-icon,
+.maxed-item .item-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  vertical-align: middle;
+}
+.fetter-table .item-name {
+  padding-left: 6px;
+  vertical-align: middle;
+}
+.fetter-table .tr .td-name .item-name {
+  color: #333;
+}
+.fetter-table .td-fetter {
+  width: 70px;
+}
+.fetter-table .td-fetter .fetter {
+  width: 30px;
+  height: 30px;
+  vertical-align: middle;
+}
+.fetter-table .td-next {
+  width: 90px;
+}
+.fetter-table .td-left {
+  width: 190px;
+}
+.fetter-table .td-left .left-text {
+  line-height: 20px;
+}
+.fetter-table .td-left .bar {
+  height: 5px;
+  margin: 2px 6px 0;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+.fetter-table .td-left .bar span {
+  display: block;
+  height: 100%;
+  background: #e9a23b;
+}
+.fetter-table .td-days {
+  width: 90px;
+}
+.maxed-list {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 8px 5px;
+}
+.maxed-item {
+  width: 76px;
+  margin: 4px 0;
+  text-align: center;
+  font-size: 12px;
+}
+.maxed-item .item-icon {
+  width: 46px;
+  height: 46px;
+}
+.maxed-item .maxed-name {
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.exp-list {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 8px 5px;
+}
+.exp-item {
+  width: 33.33%;
+  padding: 4px 10px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+}
+.exp-item span {
+  color: #666;
+}
+.fetter-notice {
+  text-align: left;
+  line-height: 1.6;
+}
