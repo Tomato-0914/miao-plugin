@@ -5,11 +5,11 @@ import Gacha from './Gacha.js'
 import { getNoteUser, stokenEntries, stokenToCookie } from '../../components/common/MysAuth.js'
 import { parseImportFile } from './SrGachaImport.js'
 import {
-  POOLS, analysePity, assignIds, cachedPity, fixedUid, mergeImport, mergePool,
-  newestUidDir, readLocal, readPoolCache, rebuildGachaData, saveUidFix, savePoolCache, toRecord, withRecordWrite
+  POOLS, assignIds, cachedPity, fixedUid, mergeImport, mergePool,
+  newestUidDir, rebuildGachaData, saveUidFix, savePoolCache, withRecordWrite
 } from './SrGachaStore.js'
 import {
-  badgeLogin, fetchAllByAuthkey, fetchFiveStars, fetchImportFile, fetchPoolStat, fetchSrRoles, fetchWorkshop,
+  badgeLogin, fetchAllByAuthkey, fetchFiveStars, fetchImportFile, fetchPoolStat, fetchSrRoles,
   guessSrRegion, parseGachaUrl, probeLinkUid, sleep
 } from './SrGachaApi.js'
 
@@ -109,7 +109,6 @@ export default class SrGachaLog extends Plugin {
         { reg: 'authkey=', fnc: 'logUrl' },
         { reg: '^\\s*#?星铁(?:强制(?:更新|获取)(?:抽卡)?|(?:更新|获取)抽卡)记录\\s*$', fnc: 'updateLog' },
         { reg: '^\\s*#?星铁(?:强制)?导入(?:小助手)?(?:抽卡)?记录(?:json|excel|xlsx)?(?:\\s+\\S+)?\\s*$', fnc: 'importLog' },
-        { reg: '^\\s*#?星铁(?:导入|更新)(?:星穹)?工坊(?:抽卡)?记录\\s*$', fnc: 'importWorkshop' },
         { reg: '^\\s*#?星铁全部(?:抽卡)?记录\\s*$', fnc: 'viewAll' }
       ]
     })
@@ -245,50 +244,6 @@ export default class SrGachaLog extends Plugin {
         }
       }
       await this.reply(`获取中断：${err.message}${saved ? `，已保存 ${saved} 条，重新发送链接可继续` : ''}`, false, { at: true })
-    }
-    return true
-  }
-
-  async importWorkshop () {
-    if (!enabled()) return false
-    let e = this.e
-    let bound = await boundSrUids(e)
-    if (!bound.length) {
-      await this.reply('请先【#星铁绑定+UID】，再发送【*导入工坊记录】', false, { at: true })
-      return true
-    }
-    let uid = bound[0]
-    await this.reply('星穹工坊记录导入中，请稍候...', false, { at: true })
-    try {
-      let added5 = await withRecordWrite(e.user_id, uid, async () => {
-        let pools = await fetchWorkshop(uid)
-        let rows = pools.flatMap(p => p.remote.list.map(s => toRecord(uid, p.type, s, s.gacha_id, 'workshop')))
-        fillMeta(rows)
-        if (rows.some(r => !r.name)) throw new Error('工坊记录物品名称未能补齐')
-        let pos = 0
-        for (let pool of pools) for (let node of pool.remote.list) node.item.name = rows[pos++].name
-        let count = 0
-        for (let pool of pools) {
-          let local = readLocal(e.user_id, uid, pool.type)
-          let prev = readPoolCache()[uid]?.[pool.type]
-          let parse = t => Date.parse(String(t || '').replace(/-/g, '/')) || 0
-          let localAt = local.filter(r => !r.xhh_ph).reduce((n, r) => Math.max(n, parse(r.time)), 0)
-          let cloudAt = parse(pool.at)
-          let cacheAt = prev?.source === 'workshop' ? parse(prev.recordAt) : Number(prev?.at) || 0
-          let keepPity = local.length && (!cloudAt || cloudAt <= Math.max(localAt, cacheAt))
-          if (keepPity) pool.remote.pity = prev ? Number(prev.pity) || 0 : analysePity(local)
-          count += mergePool(e.user_id, uid, pool.type, pool.remote, pool.poolStat, { source: 'workshop' }).added5
-          savePoolCache(uid, pool.type, pool.remote.pity, keepPity
-            ? { source: prev?.source || 'mini', recordAt: prev?.recordAt || '' }
-            : { source: 'workshop', recordAt: pool.at })
-        }
-        return count
-      })
-      await this.reply(`星穹工坊导入完成，新增五星 ${added5} 条`, false, { at: true })
-      await this.renderStat(uid)
-    } catch (err) {
-      logger.error(`[星铁抽卡记录] ${uid} 工坊导入失败：${err.stack || err.message}`)
-      await this.reply('工坊导入失败，请先在「星穹工坊」小程序同步云端记录后重试', false, { at: true })
     }
     return true
   }

@@ -8,8 +8,6 @@ const GACHA_BASE = 'https://act-api-takumi.mihoyo.com/event/rpg_gacha_record'
 const REFERER = 'https://act.mihoyo.com/sr/event/gt-aio/gacha-records/index.html'
 const LOG_HOST_CN = 'https://public-operation-hkrpg.mihoyo.com'
 const LOG_HOST_OS = 'https://public-operation-hkrpg-sg.hoyoverse.com'
-const WORKSHOP_API = 'https://api.lingyuan.design/api/v2/game_user/get_sr_draw_v3'
-const ITEM_API = 'https://api-takumi.mihoyo.com/event/rpgsimulator/config?game=hkrpg'
 const UA = 'Mozilla/5.0 (Linux; Android 13; V2183A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 miHoYoBBS/2.71.1'
 const RETRY_WAITS = [5000, 15000, 30000, 60000]
 
@@ -254,112 +252,6 @@ export async function fetchAllByAuthkey (params, qq, { full = false, onPool } = 
     throw err
   }
   return { records, uid }
-}
-
-const WORKSHOP_FIELDS = {
-  role_up_card_result: '11',
-  guang_up_card_result: '12',
-  common_card_result: '1',
-  init_card_result: '2',
-  rd_card_role_up_result: '21',
-  rd_card_guang_up_result: '22'
-}
-const WORKSHOP_TYPES = new Set(Object.values(WORKSHOP_FIELDS))
-let itemIndex = new Map()
-let itemIndexAt = 0
-
-async function workshopJson (url) {
-  let res = await request(url, {
-    headers: { Accept: 'application/json, text/plain, */*', Referer: 'https://starrail.lelaer.com/', Origin: 'https://starrail.lelaer.com' },
-    timeout: 30000
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return await res.json()
-}
-
-async function loadItemIndex () {
-  if (itemIndex.size && Date.now() - itemIndexAt < 7 * 86400000) return itemIndex
-  try {
-    let json = await workshopJson(ITEM_API)
-    let next = new Map()
-    for (let item of [...(json?.data?.avatar || []), ...(json?.data?.equipment || [])]) {
-      let name = item.item_name || item.name
-      if (item.item_id && name) next.set(String(item.item_id), name)
-    }
-    if (next.size) {
-      itemIndex = next
-      itemIndexAt = Date.now()
-    }
-  } catch (err) {
-    logger.warn(`[星铁抽卡记录] 工坊物品配置获取失败：${err.message}`)
-  }
-  return itemIndex
-}
-
-function safeNum (value, label) {
-  let n = Number(value || 0)
-  if (!Number.isSafeInteger(n) || n < 0 || n > 100000) throw new Error(`工坊${label}异常`)
-  return n
-}
-
-function convertWorkshop (analysis, uid, names) {
-  if (typeof analysis === 'string') analysis = JSON.parse(analysis)
-  if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) throw new Error('工坊没有可用的抽卡数据')
-  let pools = new Map()
-  let ids = new Set()
-  let newPool = (type, pity = 0, at = '') => ({ type, remote: { list: [], pity }, poolStat: { cards: [], byUpItem: new Map() }, at })
-  for (let [field, fallbackType] of Object.entries(WORKSHOP_FIELDS)) {
-    let data = analysis[field]
-    if (!data) continue
-    if (!Array.isArray(data.five_cards)) throw new Error(`工坊卡池 ${field} 格式异常`)
-    pools.set(fallbackType, newPool(fallbackType, safeNum(data.dian_card_infos?.draw_total, '垫抽数'), data.analysis_last_card_time || data.dian_card_infos?.time || ''))
-    for (let i = 0; i < data.five_cards.length; i++) {
-      let card = data.five_cards[i]
-      if (!card || typeof card !== 'object') throw new Error('工坊五星记录格式异常')
-      if (card.uid && String(card.uid) !== String(uid)) throw new Error('工坊返回了其他 UID 的记录')
-      let type = String(card.gacha_type || fallbackType)
-      if (!WORKSHOP_TYPES.has(type)) throw new Error(`工坊卡池类型异常：${type}`)
-      let itemId = String(card.item_id || '')
-      if (!/^\d+$/.test(itemId)) throw new Error('工坊记录缺少物品编号')
-      let id = String(card.id || '')
-      if (!/^\d+$/.test(id)) {
-        let sec = Math.floor(Date.parse(String(card.time || '').replace(/-/g, '/')) / 1000)
-        if (!Number.isFinite(sec) || sec <= 0) throw new Error('工坊记录缺少时间与编号')
-        id = String(BigInt(sec) * 1000000000n + BigInt(999999999 - i))
-      }
-      if (ids.has(`${type}:${id}`)) continue
-      ids.add(`${type}:${id}`)
-      if (!pools.has(type)) pools.set(type, newPool(type))
-      let target = pools.get(type)
-      let gachaId = String(card.gacha_id || '')
-      if (card.is_up === true && gachaId) target.poolStat.byUpItem.set(itemId, gachaId)
-      let node = {
-        id,
-        time: String(card.time || ''),
-        gacha_id: gachaId,
-        gacha_count: Math.max(1, safeNum(card.draw_total, '五星抽数')),
-        item: {
-          item_id: itemId,
-          name: names.get(itemId) || String(card.name || ''),
-          item_type: ['光锥', '武器'].includes(card.item_type) ? 'ItemType_Equipment' : 'ItemType_Avatar',
-          rarity: 5
-        }
-      }
-      if (typeof card.is_up === 'boolean') node.is_up = card.is_up
-      target.remote.list.push(node)
-    }
-  }
-  if (!pools.size) throw new Error('工坊没有常规卡池记录')
-  for (let p of pools.values()) p.remote.list.sort((a, b) => big(b.id) > big(a.id) ? 1 : big(b.id) < big(a.id) ? -1 : 0)
-  return [...pools.values()]
-}
-
-export async function fetchWorkshop (uid) {
-  let json = await workshopJson(`${WORKSHOP_API}?${new URLSearchParams({ uid: String(uid), union_id: '1' })}`)
-  if (Number(json?.code) !== 0) throw new Error(`工坊请求失败：${json?.message || '无响应'}`)
-  let analysis = json?.data?.card_analysis_json
-  if (!analysis) throw new Error('工坊没有这个 UID 的云端记录')
-  return convertWorkshop(analysis, uid, await loadItemIndex())
 }
 
 async function fileUrlFromSeg (e, seg) {

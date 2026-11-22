@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import moment from 'moment'
+import moment from '../../components/Moment.js'
 
 export const POOLS = [
   { key: 'GachaType_AvatarUp', type: '11', name: '角色活动跃迁' },
@@ -56,15 +56,13 @@ export function readPoolCache (strict = false) {
   return readJson(POOL_CACHE, strict)
 }
 
-export function savePoolCache (uid, type, pity, { source = 'mini', recordAt = '' } = {}) {
+export function savePoolCache (uid, type, pity) {
   let all = readPoolCache()
   let key = String(uid)
   all[key] = all[key] || {}
   let prev = all[key][String(type)] || {}
   all[key][String(type)] = {
     at: Date.now(),
-    source,
-    recordAt,
     pity: pity === undefined ? prev.pity || 0 : Number(pity) || 0
   }
   writeJson(POOL_CACHE, all)
@@ -131,15 +129,6 @@ function writeLocal (qq, uid, type, list) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
   fs.writeFileSync(`${file}.tmp`, JSON.stringify(list, '', '\t'))
   fs.renameSync(`${file}.tmp`, file)
-}
-
-export function analysePity (list) {
-  let n = 0
-  for (let r of [...list].sort(byIdDesc)) {
-    if (String(r.rank_type) === '5') break
-    n++
-  }
-  return n
 }
 
 export function newestUidDir (qq) {
@@ -212,7 +201,7 @@ function dedupeMini (list) {
   return list.filter(r => !drop.has(r))
 }
 
-export function toRecord (uid, type, node, gachaId, source = 'mini') {
+export function toRecord (uid, type, node, gachaId) {
   let item = node.item
   return {
     uid: String(uid),
@@ -227,7 +216,6 @@ export function toRecord (uid, type, node, gachaId, source = 'mini') {
     rank_type: String(item.rarity || 5),
     id: String(node.id),
     xhh_src: 'mini',
-    ...(source === 'workshop' ? { xhh_origin: 'workshop' } : {}),
     ...(typeof node.is_up === 'boolean' ? { is_up: node.is_up } : {}),
     xhh_pity: String(node.gacha_count || '')
   }
@@ -276,7 +264,7 @@ function gachaOf (type, poolStat, itemId) {
   return String(type) === '1' ? STANDARD_GACHA_ID : ''
 }
 
-export function mergePool (qq, uid, type, remote, poolStat, { replace = false, persist = true, source = 'mini' } = {}) {
+export function mergePool (qq, uid, type, remote, poolStat, { replace = false, persist = true } = {}) {
   let raw = replace ? [] : readLocal(qq, uid, type)
   let local = dedupeMini(raw)
   let real = local.filter(r => !r.xhh_ph)
@@ -354,18 +342,12 @@ export function mergePool (qq, uid, type, remote, poolStat, { replace = false, p
       skipped++
       anchorTime[i] = hit.time
       let localNum = Number(localGap.get(String(hit.id))) || 0
-      if (source === 'mini' && hit.xhh_origin === 'workshop') {
+      if (hit.xhh_origin) {
         finalCount[i] = Number(s.gacha_count) || localNum
         delete hit.xhh_origin
         patched++
       } else {
-        finalCount[i] = source === 'workshop' && Number(hit.xhh_pity) > 0
-          ? Number(hit.xhh_pity)
-          : Math.max(Number(s.gacha_count) || 0, localNum)
-      }
-      if (source === 'workshop' && typeof s.is_up === 'boolean' && hit.is_up !== s.is_up) {
-        hit.is_up = s.is_up
-        patched++
+        finalCount[i] = Math.max(Number(s.gacha_count) || 0, localNum)
       }
       let fuller = String(finalCount[i])
       if (String(hit.xhh_pity || '') !== fuller) {
@@ -373,7 +355,7 @@ export function mergePool (qq, uid, type, remote, poolStat, { replace = false, p
         patched++
       }
     } else {
-      let rec = toRecord(uid, type, s, gachaOf(type, poolStat, s.item.item_id), source)
+      let rec = toRecord(uid, type, s, gachaOf(type, poolStat, s.item.item_id))
       anchorTime[i] = rec.time
       added.push(rec)
       usedIds.add(String(s.id))
@@ -530,7 +512,7 @@ function removeTree (dir) {
 export function rebuildGachaData (qq, uid, entries) {
   let dir = path.join(SR_JSON_DIR, String(qq), String(uid))
   let cache = readPoolCache(true)
-  cache[String(uid)] = Object.fromEntries(entries.map(p => [p.type, { at: Date.now(), source: 'mini', recordAt: '', pity: p.pity }]))
+  cache[String(uid)] = Object.fromEntries(entries.map(p => [p.type, { at: Date.now(), pity: p.pity }]))
   let suffix = `${process.pid}-${Date.now()}`
   let stage = `${dir}.rebuild-${suffix}`
   let backup = `${dir}.previous-${suffix}`

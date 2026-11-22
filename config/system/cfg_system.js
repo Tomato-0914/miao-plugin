@@ -198,7 +198,7 @@ export const cfgSchema = {
         title: '*更新抽卡记录 *导入记录',
         key: '星铁抽卡记录',
         def: true,
-        desc: '星铁抽卡记录更新（stoken免链接）、抽卡链接、文件与星穹工坊导入'
+        desc: '星铁抽卡记录免链接更新（需绑定CK或扫码登录）、抽卡链接与文件导入'
       },
       redeem: {
         title: '#使用兑换码 #自动兑换码',
