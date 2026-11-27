@@ -6,10 +6,18 @@ import md5 from 'md5'
 import fetch from 'node-fetch'
 
 const STOKEN_DIRS = [
+  'data/Login-Plugin',
   'plugins/xiaoyao-cvs-plugin/data/yaml',
+  'data/Mihoyo-Login',
+  'plugins/Mihoyo-Login-Plugin/data/yaml',
   'plugins/xhh/data/Stoken',
   'plugins/xhh-TL/data/Stoken'
 ]
+const EXCHANGE_URL = 'https://passport-api.mihoyo.com/account/ma-cn-session/app/exchange'
+const EXCHANGE_SALT = 'JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS'
+const EXCHANGE_APP_VERSION = '2.106.2'
+const EXCHANGE_SDK_VERSION = '2.44.0'
+const EXCHANGE_DEVICE_ID = crypto.randomUUID().replace(/-/g, '').toUpperCase()
 const APP_UA = 'Mozilla/5.0 (Linux; Android 13; Mi 10 Build/UKQ1.230804.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/74.0.3729.186 Mobile Safari/537.36 miHoYoBBS/2.71.1'
 
 export function cookiePart (ck = '', key) {
@@ -63,6 +71,53 @@ async function getJson (url, headers) {
   }
 }
 
+async function exchangeCookieToken ({ stuid, stoken, mid }) {
+  let body = JSON.stringify({ dst_token_type: 4, src_token: { token: stoken, token_type: 1 }, mid })
+  let t = Math.floor(Date.now() / 1000)
+  let r = Math.random().toString(36).slice(2, 8)
+  let ctrl = new AbortController()
+  let timer = setTimeout(() => ctrl.abort(), 15000)
+  let json
+  try {
+    let res = await fetch(EXCHANGE_URL, {
+      method: 'POST',
+      body,
+      headers: {
+        'Content-Type': 'application/json',
+        DS: `${t},${r},${md5(`salt=${EXCHANGE_SALT}&t=${t}&r=${r}&b=${body}&q=`)}`,
+        'User-Agent': `Mozilla/5.0 (Linux; Android 12; Unspecified Device) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/103.0.5060.129 Mobile Safari/537.36 miHoYoBBS/${EXCHANGE_APP_VERSION}`,
+        'x-rpc-app_version': EXCHANGE_APP_VERSION,
+        'x-rpc-client_type': '2',
+        'x-rpc-app_id': 'bll8iq97cem8',
+        'x-rpc-device_id': EXCHANGE_DEVICE_ID,
+        'x-rpc-device_name': 'Mihoyo Capture',
+        'x-rpc-device_model': 'Mi 14',
+        'x-rpc-game_biz': 'bbs_cn',
+        'x-rpc-sdk_version': EXCHANGE_SDK_VERSION,
+        'x-rpc-account_version': EXCHANGE_SDK_VERSION
+      },
+      signal: ctrl.signal
+    })
+    json = await res.json().catch(() => null)
+  } catch (err) {
+    logger.warn(`[米游社凭证] stoken 换票请求异常：${err.name}`)
+    return ''
+  } finally {
+    clearTimeout(timer)
+  }
+  let token = json?.data?.token
+  let owner = String(json?.data?.user_info?.aid || '')
+  if (json?.retcode !== 0 || token?.token_type !== 4 || !/^v2_/.test(token?.token || '')) {
+    logger.warn(`[米游社凭证] stoken 换票失败：${json?.message || '无响应'}（${json?.retcode}）`)
+    return ''
+  }
+  if (owner && owner !== String(stuid)) {
+    logger.warn(`[米游社凭证] stoken 换票结果与通行证 ${stuid} 不符`)
+    return ''
+  }
+  return token.token
+}
+
 async function cookieTokenBySToken ({ stuid, stoken, mid }) {
   let ck = `stuid=${stuid};stoken=${stoken}${mid ? `;mid=${mid}` : ''}`
   let json = await getJson('https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken', {
@@ -92,6 +147,10 @@ export async function stokenToCookie (entry) {
   }
   let cred = parseEntry(entry)
   if (!cred.stuid || !cred.stoken) return ''
+  if (/^v2_/.test(cred.stoken) && cred.mid) {
+    let token = await exchangeCookieToken(cred)
+    return token ? `account_id_v2=${cred.stuid};account_mid_v2=${cred.mid};cookie_token_v2=${token}` : ''
+  }
   let token = await cookieTokenBySToken(cred)
   return token ? `account_id=${cred.stuid};ltuid=${cred.stuid};cookie_token=${token}` : ''
 }

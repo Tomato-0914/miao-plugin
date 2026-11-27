@@ -166,6 +166,7 @@ export default class SrGachaLog extends Plugin {
     let pools = []
     let pending = []
     let failed = 0
+    let firstErr = ''
     for (let pool of POOLS) {
       try {
         let remote = await fetchFiveStars(gachaCookie, pool.key)
@@ -182,11 +183,12 @@ export default class SrGachaLog extends Plugin {
         })
       } catch (err) {
         failed++
+        firstErr = firstErr || err.message
         logger.warn(`[星铁抽卡记录] ${pool.name} 拉取失败：${err.message}`)
       }
       await sleep(400)
     }
-    if (failed === POOLS.length) throw new Error('所有卡池均拉取失败')
+    if (failed === POOLS.length) throw new Error(`所有卡池均拉取失败（${firstErr}）`)
     if (force) {
       if (failed) throw new Error('未能拉取全部卡池，旧记录已保留')
       rebuildGachaData(qq, uid, pending)

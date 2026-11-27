@@ -50,6 +50,7 @@ export async function badgeLogin (mysCookie, uid, region) {
   })
   if (json?.retcode !== 0) {
     if (json?.retcode === -1002) throw new Error(`米游社查不到 UID ${uid}，请确认扫码登录的是这个账号`)
+    if (json?.retcode === -100) throw new Error('米游社登录已失效，请重新【#扫码登录】')
     throw new Error(`换取抽卡记录凭证失败：${json?.message || '接口无响应'}（${json?.retcode}）`)
   }
   let act = setCookie
