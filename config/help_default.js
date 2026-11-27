@@ -160,10 +160,6 @@ export const helpList = [{
     icon: 86,
     title: '#签到',
     desc: '米游社原神签到'
-  }, {
-    icon: 5,
-    title: '#使用兑换码 #自动兑换码',
-    desc: '国服兑换码，星铁*/绝区零%'
   }]
 }, {
   group: '其他查询指令',
@@ -179,10 +175,6 @@ export const helpList = [{
     icon: 21,
     title: '#角色统计 #武器统计',
     desc: '按卡池统计抽卡数据'
-  }, {
-    icon: 6,
-    title: '*更新抽卡记录 *导入记录',
-    desc: '星铁免链接更新/文件导入'
   }, {
     icon: 8,
     title: '十连 十连2 定轨',
